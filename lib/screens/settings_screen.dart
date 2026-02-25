@@ -23,16 +23,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    // Load current values from Provider
-    Future.delayed(Duration.zero, () {
-      final gasData = Provider.of<GasDataProvider>(context, listen: false);
-      _serverIpController.text = gasData.serverIp;
-      _serverPortController.text = gasData.serverPort;
-      _refreshIntervalController.text = gasData.refreshInterval.toString();
-      setState(() {
-        _autoRefresh = gasData.autoRefresh;
-      });
-    });
+    final gasData = Provider.of<GasDataProvider>(context, listen: false);
+    _serverIpController = TextEditingController(text: gasData.serverIp);
+    _serverPortController = TextEditingController(text: gasData.serverPort);
+    _refreshIntervalController = TextEditingController(
+      text: gasData.refreshInterval.toString(),
+    );
+    _autoRefresh = gasData.autoRefresh;
   }
 
   @override
