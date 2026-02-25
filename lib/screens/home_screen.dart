@@ -38,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gas Monitor'),
+        title: const Text('Gas Guard Monitor'),
         centerTitle: true,
         actions: [
           ThemeToggle(),
