@@ -5,7 +5,7 @@ import '../models/incident_model.dart';
 
 class ApiService {
   // Default server IP
-  static String baseUrl = 'http://192.168.1.100:3000';
+  static String baseUrl = 'http://127.0.0.1:3000';
 
   static void updateBaseUrl(String url) {
     baseUrl = url;

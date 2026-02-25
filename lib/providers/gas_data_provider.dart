@@ -18,8 +18,8 @@ class GasDataProvider with ChangeNotifier {
   int _currentPage = 1;
   String _filterStatus = 'all';
 
-  // Settings
-  String _serverIp = '192.168.1.100';
+  //TODO Change IP Settings
+  String _serverIp = '127.0.0.1';
   String _serverPort = '3000';
   int _refreshInterval = 2;
   bool _autoRefresh = true;
@@ -68,7 +68,7 @@ class GasDataProvider with ChangeNotifier {
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     _isDarkMode = prefs.getBool('isDarkMode') ?? false;
-    _serverIp = prefs.getString('serverIp') ?? '192.168.1.100';
+    _serverIp = prefs.getString('serverIp') ?? '127.0.0.1';
     _serverPort = prefs.getString('serverPort') ?? '3000';
     _refreshInterval = prefs.getInt('refreshInterval') ?? 2;
     _autoRefresh = prefs.getBool('autoRefresh') ?? true;
