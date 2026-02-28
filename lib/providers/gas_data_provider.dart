@@ -22,7 +22,7 @@ class GasDataProvider extends ChangeNotifier {
   String _filterStatus = 'all';
 
   // Server Settings
-  String _serverIp = '127.0.0.1';
+  String _serverIp = 'https://gas-detector-api.onrender.com';
   String _serverPort = '3000';
   int _refreshInterval = 2;
   bool _autoRefresh = true;
@@ -85,13 +85,17 @@ class GasDataProvider extends ChangeNotifier {
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     _isDarkMode = prefs.getBool('isDarkMode') ?? false;
-    _serverIp = prefs.getString('serverIp') ?? '127.0.0.1';
+    _serverIp = prefs.getString('serverIp') ?? 'https://gas-detector-api.onrender.com';
     _serverPort = prefs.getString('serverPort') ?? '3000';
-    _refreshInterval = prefs.getInt('refreshInterval') ?? 2;
+    _refreshInterval = prefs.getInt('refreshInterval') ?? 3;
     _autoRefresh = prefs.getBool('autoRefresh') ?? true;
 
     // Update API Service
-    ApiService.updateBaseUrl('http://$_serverIp:$_serverPort');
+    ApiService.updateBaseUrl(
+      serverIp == 'https://gas-detector-api.onrender.com'
+          ? 'https://gas-detector-api.onrender.com'
+          : 'http://$_serverIp:$_serverPort',
+    );
     notifyListeners();
   }
 
@@ -107,7 +111,11 @@ class GasDataProvider extends ChangeNotifier {
     _refreshInterval = interval;
     _autoRefresh = autoRefresh;
 
-    ApiService.updateBaseUrl('http://$_serverIp:$_serverPort');
+    ApiService.updateBaseUrl(
+      serverIp == 'https://gas-detector-api.onrender.com'
+          ? 'https://gas-detector-api.onrender.com'
+          : 'http://$_serverIp:$_serverPort',
+    );
     await _savePreferences();
 
     // Re-test connection with new settings
@@ -128,50 +136,53 @@ class GasDataProvider extends ChangeNotifier {
     if (_isBluetoothConnected) {
       disconnectBluetooth();
     }
-    
+
     final success = await _bluetoothService.connect(address);
     _isBluetoothConnected = success;
-    
+
     if (success) {
       _startBluetoothBridging();
       debugPrint('✅ Bluetooth connected successfully');
     } else {
       debugPrint('❌ Bluetooth connection failed');
     }
-    
+
     notifyListeners();
   }
 
   void _startBluetoothBridging() {
     _bluetoothSubscription?.cancel();
-    _bluetoothSubscription = _bluetoothService.dataStream.listen((data) {
-      _bluetoothBuffer += data;
+    _bluetoothSubscription = _bluetoothService.dataStream.listen(
+      (data) {
+        _bluetoothBuffer += data;
 
-      // Process complete lines (Arduino sends \n terminated lines)
-      while (_bluetoothBuffer.contains('\n')) {
-        final index = _bluetoothBuffer.indexOf('\n');
-        String line = _bluetoothBuffer.substring(0, index).trim();
-        _bluetoothBuffer = _bluetoothBuffer.substring(index + 1);
+        // Process complete lines (Arduino sends \n terminated lines)
+        while (_bluetoothBuffer.contains('\n')) {
+          final index = _bluetoothBuffer.indexOf('\n');
+          String line = _bluetoothBuffer.substring(0, index).trim();
+          _bluetoothBuffer = _bluetoothBuffer.substring(index + 1);
 
-        if (line.isNotEmpty) {
-          _processBluetoothData(line);
+          if (line.isNotEmpty) {
+            _processBluetoothData(line);
+          }
         }
-      }
-    }, onError: (error) {
-      debugPrint('❌ Bluetooth stream error: $error');
-      _isBluetoothConnected = false;
-      notifyListeners();
-    });
+      },
+      onError: (error) {
+        debugPrint('❌ Bluetooth stream error: $error');
+        _isBluetoothConnected = false;
+        notifyListeners();
+      },
+    );
   }
 
   // CRITICAL: Process Bluetooth data with local intelligence
   void _processBluetoothData(String data) {
     debugPrint('📡 Raw BT data: "$data"');
-    
+
     // Parse Arduino format: "GAS:512,ALERT" OR raw integer "512"
     int? gasLevel;
     String status = 'NORMAL';
-    
+
     // Case 1: Arduino sends "GAS:512,ALERT" format
     if (data.startsWith('GAS:')) {
       try {
@@ -184,23 +195,23 @@ class GasDataProvider extends ChangeNotifier {
         debugPrint('⚠️ Parse error for "$data": $e');
         return;
       }
-    } 
+    }
     // Case 2: Arduino sends raw integer
     else {
       gasLevel = int.tryParse(data.trim());
     }
-    
+
     // Validate reading
     if (gasLevel == null || gasLevel < 0 || gasLevel > 1023) {
       debugPrint('⚠️ Invalid gas level: $gasLevel');
       return;
     }
-    
+
     // Determine status if not provided
     if (status == 'NORMAL' && gasLevel > 400) {
       status = 'ALERT';
     }
-    
+
     // Create incident with current timestamp
     final incident = Incident(
       gasLevel: gasLevel,
@@ -208,29 +219,33 @@ class GasDataProvider extends ChangeNotifier {
       timestamp: DateTime.now(),
       location: 'Mobile Sensor (${_bluetoothService.deviceName ?? "HC-05"})',
     );
-    
+
     // 1. Update UI immediately (real-time feedback)
     _latestReading = incident;
     _addToLocalIncidents(incident); // Store locally for UI
     notifyListeners();
-    
+
     // 2. Add to rolling buffer for averaging
     _recentGasLevels.add(gasLevel);
     if (_recentGasLevels.length > _bufferSize) {
       _recentGasLevels.removeAt(0); // Maintain only last 3 readings
     }
-    
+
     // 3. CRITICAL LOGIC: Only send to server if avg of last 3 > 800 PPM
     if (_recentGasLevels.length >= _bufferSize) {
       final avgLevel = _recentGasLevels.reduce((a, b) => a + b) / _bufferSize;
-      debugPrint('📊 Rolling avg of last $_bufferSize readings: ${avgLevel.toStringAsFixed(1)} PPM');
-      
+      debugPrint(
+        '📊 Rolling avg of last $_bufferSize readings: ${avgLevel.toStringAsFixed(1)} PPM',
+      );
+
       if (avgLevel > _criticalThreshold) {
-        _queueForServerSend(incident.copyWith(
-          gasLevel: avgLevel.round(), // Send averaged value
-          status: 'ALERT', // Force alert status for critical avg
-          location: '${incident.location} (Avg)',
-        ));
+        _queueForServerSend(
+          incident.copyWith(
+            gasLevel: avgLevel.round(), // Send averaged value
+            status: 'ALERT', // Force alert status for critical avg
+            location: '${incident.location} (Avg)',
+          ),
+        );
       }
     }
   }
@@ -239,38 +254,46 @@ class GasDataProvider extends ChangeNotifier {
   void _addToLocalIncidents(Incident incident) {
     // Add to front of list (newest first)
     _incidents.insert(0, incident);
-    
+
     // Maintain chart data (last 50 points)
     _chartData.add(incident);
     if (_chartData.length > 50) {
       _chartData.removeAt(0);
     }
-    
+
     // Update statistics
-    _statistics['totalRecords'] = (_statistics['totalRecords'] as int?) ?? 0 + 1;
+    _statistics['totalRecords'] =
+        (_statistics['totalRecords'] as int?) ?? 0 + 1;
     if (incident.isAlert) {
-      _statistics['alertsToday'] = (_statistics['alertsToday'] as int?) ?? 0 + 1;
+      _statistics['alertsToday'] =
+          (_statistics['alertsToday'] as int?) ?? 0 + 1;
     }
     _statistics['avgGasLevel'] = (_statistics['totalRecords']! > 0)
-        ? ((_statistics['avgGasLevel'] as int?) ?? 0 + incident.gasLevel) ~/ _statistics['totalRecords']!
+        ? ((_statistics['avgGasLevel'] as int?) ?? 0 + incident.gasLevel) ~/
+              _statistics['totalRecords']!
         : incident.gasLevel;
-    
+
     notifyListeners();
   }
 
   // Queue incident for server send with retry logic
   void _queueForServerSend(Incident incident) {
     // Don't queue duplicates (same timestamp within 1 second)
-    if (_pendingSends.any((p) => 
-        p.incident.timestamp.difference(incident.timestamp).inSeconds.abs() < 1)) {
+    if (_pendingSends.any(
+      (p) =>
+          p.incident.timestamp.difference(incident.timestamp).inSeconds.abs() <
+          1,
+    )) {
       debugPrint('⏭️ Skipping duplicate incident send');
       return;
     }
-    
+
     final pending = PendingIncident(incident);
     _pendingSends.add(pending);
-    debugPrint('📤 Queued critical incident for server send (avg=${incident.gasLevel} PPM)');
-    
+    debugPrint(
+      '📤 Queued critical incident for server send (avg=${incident.gasLevel} PPM)',
+    );
+
     // Start retry timer if not already running
     if (_retryTimer == null) {
       _startRetryTimer();
@@ -280,50 +303,62 @@ class GasDataProvider extends ChangeNotifier {
   // Retry timer with exponential backoff
   void _startRetryTimer() {
     _retryTimer?.cancel();
-    
+
     _retryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_pendingSends.isEmpty) {
         timer.cancel();
         _retryTimer = null;
         return;
       }
-      
+
       // Process oldest pending incident
       final pending = _pendingSends.first;
-      
+
       // Check if ready for retry (exponential backoff)
       final elapsed = DateTime.now().difference(pending.lastAttempt);
-      final nextDelay = Duration(seconds: min(1 << pending.retryCount, 30)); // 1,2,4,8,16,30s max
-      
+      final nextDelay = Duration(
+        seconds: min(1 << pending.retryCount, 30),
+      ); // 1,2,4,8,16,30s max
+
       if (elapsed < nextDelay) return;
-      
+
       // Attempt send
       pending.lastAttempt = DateTime.now();
       pending.retryCount++;
-      
-      debugPrint('⟳ Retry #${pending.retryCount} for incident ${pending.incident.id} '
-          '(next delay: ${nextDelay.inSeconds}s)');
-      
+
+      debugPrint(
+        '⟳ Retry #${pending.retryCount} for incident ${pending.incident.id} '
+        '(next delay: ${nextDelay.inSeconds}s)',
+      );
+
       // Send to server
-      ApiService.createIncident(pending.incident).then((success) {
-        if (success) {
-          debugPrint('✅ Server send successful for incident ${pending.incident.id}');
-          _pendingSends.remove(pending);
-        } else {
-          debugPrint('❌ Server send failed for incident ${pending.incident.id} '
-              '(retry ${pending.retryCount}/5)');
-          
-          // Stop retrying after 5 attempts
-          if (pending.retryCount >= 5) {
-            debugPrint('⚠️ Giving up on incident ${pending.incident.id} after 5 retries');
-            _pendingSends.remove(pending);
-          }
-        }
-        notifyListeners();
-      }).catchError((error) {
-        debugPrint('❌ Exception during server send: $error');
-        // Keep in queue for next retry
-      });
+      ApiService.createIncident(pending.incident)
+          .then((success) {
+            if (success) {
+              debugPrint(
+                '✅ Server send successful for incident ${pending.incident.id}',
+              );
+              _pendingSends.remove(pending);
+            } else {
+              debugPrint(
+                '❌ Server send failed for incident ${pending.incident.id} '
+                '(retry ${pending.retryCount}/5)',
+              );
+
+              // Stop retrying after 5 attempts
+              if (pending.retryCount >= 5) {
+                debugPrint(
+                  '⚠️ Giving up on incident ${pending.incident.id} after 5 retries',
+                );
+                _pendingSends.remove(pending);
+              }
+            }
+            notifyListeners();
+          })
+          .catchError((error) {
+            debugPrint('❌ Exception during server send: $error');
+            // Keep in queue for next retry
+          });
     });
   }
 
@@ -369,7 +404,9 @@ class GasDataProvider extends ChangeNotifier {
       if (!loadMore) {
         // Merge server incidents with local-only incidents (avoid duplicates)
         final serverIds = incidents.map((i) => i.id).toSet();
-        final localOnly = _incidents.where((i) => i.id == null || !serverIds.contains(i.id)).toList();
+        final localOnly = _incidents
+            .where((i) => i.id == null || !serverIds.contains(i.id))
+            .toList();
         _incidents = [...incidents, ...localOnly];
       } else {
         _incidents.addAll(incidents);
@@ -432,20 +469,20 @@ class GasDataProvider extends ChangeNotifier {
   Future<void> initialize() async {
     // Load saved preferences
     await _loadPreferences();
-    
+
     // Test server connection
     await testConnection();
-    
+
     // Load historical data if connected
     if (_isConnected) {
       await refreshAllData();
     }
-    
+
     // Start auto-refresh if enabled
     if (_autoRefresh) {
       startAutoRefresh(interval: _refreshInterval);
     }
-    
+
     notifyListeners();
   }
 
@@ -481,6 +518,8 @@ class PendingIncident {
   PendingIncident(this.incident);
 
   Duration get nextRetryDelay {
-    return Duration(seconds: (1 << retryCount).clamp(1, 30)); // 1, 2, 4, 8, 16, 30s max
+    return Duration(
+      seconds: (1 << retryCount).clamp(1, 30),
+    ); // 1, 2, 4, 8, 16, 30s max
   }
 }

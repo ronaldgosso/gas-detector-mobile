@@ -41,7 +41,6 @@ dependencies:
   intl: ^0.18.1
   syncfusion_flutter_charts: ^24.1.44
   pull_to_refresh: ^2.0.0
-  connectivity_plus: ^5.0.2
   flutter_bluetooth_serial_plus: ^0.5.1
 
 dev_dependencies:
