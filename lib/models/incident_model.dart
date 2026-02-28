@@ -14,21 +14,32 @@ class Incident {
   });
 
   factory Incident.fromJson(Map<String, dynamic> json) {
-    return Incident(
-      id: json['id'],
-      gasLevel: json['gas_level'] ?? 0,
-      status: json['status'] ?? 'NORMAL',
-      timestamp: DateTime.parse(json['timestamp']),
-      location: json['location'] ?? 'Main Sensor',
-    );
+    try {
+      return Incident(
+        id: json['id'] is int
+            ? json['id']
+            : int.tryParse(json['id']?.toString() ?? ''),
+        gasLevel: json['gas_level'] is int
+            ? json['gas_level']
+            : (int.tryParse(json['gas_level']?.toString() ?? '0') ?? 0),
+        status: json['status']?.toString().toUpperCase() ?? 'NORMAL',
+        timestamp: json['timestamp'] != null
+            ? DateTime.parse(json['timestamp'].toString())
+            : DateTime.now(),
+        location: json['location']?.toString() ?? 'Main Sensor',
+      );
+    } catch (e) {
+      return Incident(
+        gasLevel: 0,
+        status: 'ERROR',
+        timestamp: DateTime.now(),
+        location: 'Parse Error',
+      );
+    }
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'gas_level': gasLevel,
-      'status': status,
-      'location': location,
-    };
+    return {'gas_level': gasLevel, 'status': status, 'location': location};
   }
 
   bool get isAlert => status == 'ALERT';

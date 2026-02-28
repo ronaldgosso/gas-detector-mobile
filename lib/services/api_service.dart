@@ -16,19 +16,20 @@ class ApiService {
   // Get latest sensor reading
   static Future<Incident?> getLatestReading() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl$apiPrefix/sensor/latest'),
-      );
+      final response = await http
+          .get(Uri.parse('$baseUrl$apiPrefix/sensor/latest'))
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success'] && data['data'] != null) {
+        if (data is Map && data['success'] == true && data['data'] != null) {
           return Incident.fromJson(data['data']);
         }
       }
+      debugPrint('Failed to get latest reading: ${response.statusCode}');
       return null;
     } catch (e) {
-      debugPrint('Error fetching latest reading: $e');
+      debugPrint('Error fetching latest reading from $baseUrl: $e');
       return null;
     }
   }
@@ -40,22 +41,33 @@ class ApiService {
     String status = 'all',
   }) async {
     try {
-      final response = await http.get(
-        Uri.parse(
-          '$baseUrl$apiPrefix/incidents?page=$page&limit=$limit&status=$status',
-        ),
-      );
+      final response = await http
+          .get(
+            Uri.parse(
+              '$baseUrl$apiPrefix/incidents?page=$page&limit=$limit&status=$status',
+            ),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success'] && data['data'] != null) {
-          final incidentsJson = data['data']['incidents'] as List;
+        if (data is Map && data['success'] == true && data['data'] != null) {
+          final incidentsData = data['data'];
+          List incidentsJson = [];
+
+          if (incidentsData is Map && incidentsData['incidents'] != null) {
+            incidentsJson = incidentsData['incidents'] as List;
+          } else if (incidentsData is List) {
+            incidentsJson = incidentsData;
+          }
+
           return incidentsJson.map((json) => Incident.fromJson(json)).toList();
         }
       }
+      debugPrint('Failed to get incidents: ${response.statusCode}');
       return [];
     } catch (e) {
-      debugPrint('Error fetching incidents: $e');
+      debugPrint('Error fetching incidents from $baseUrl: $e');
       return [];
     }
   }
@@ -63,19 +75,22 @@ class ApiService {
   // Get statistics
   static Future<Map<String, dynamic>> getStatistics() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl$apiPrefix/statistics'),
-      );
+      final response = await http
+          .get(Uri.parse('$baseUrl$apiPrefix/statistics'))
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success']) {
-          return data['data'] ?? {};
+        if (data is Map && data['success'] == true) {
+          return data['data'] is Map
+              ? Map<String, dynamic>.from(data['data'])
+              : {};
         }
       }
+      debugPrint('Failed to get statistics: ${response.statusCode}');
       return {};
     } catch (e) {
-      debugPrint('Error fetching statistics: $e');
+      debugPrint('Error fetching statistics from $baseUrl: $e');
       return {};
     }
   }
@@ -83,20 +98,21 @@ class ApiService {
   // Get chart data
   static Future<List<Incident>> getChartData({int limit = 50}) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl$apiPrefix/chart/data?limit=$limit'),
-      );
+      final response = await http
+          .get(Uri.parse('$baseUrl$apiPrefix/chart/data?limit=$limit'))
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success'] && data['data'] != null) {
+        if (data is Map && data['success'] == true && data['data'] != null) {
           final chartDataJson = data['data'] as List;
           return chartDataJson.map((json) => Incident.fromJson(json)).toList();
         }
       }
+      debugPrint('Failed to get chart data: ${response.statusCode}');
       return [];
     } catch (e) {
-      debugPrint('Error fetching chart data: $e');
+      debugPrint('Error fetching chart data from $baseUrl: $e');
       return [];
     }
   }
@@ -154,9 +170,12 @@ class ApiService {
   // Test connection
   static Future<bool> testConnection() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl$apiPrefix/health'));
+      final response = await http
+          .get(Uri.parse('$baseUrl$apiPrefix/health'))
+          .timeout(const Duration(seconds: 3));
       return response.statusCode == 200;
     } catch (e) {
+      debugPrint('Connection test failed for $baseUrl: $e');
       return false;
     }
   }

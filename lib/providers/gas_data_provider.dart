@@ -1,11 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/incident_model.dart';
 import '../services/api_service.dart';
+import '../services/bluetooth_service.dart';
 
-class GasDataProvider with ChangeNotifier {
+class GasDataProvider extends ChangeNotifier {
   bool _isDarkMode = false;
   bool get isDarkMode => _isDarkMode;
 
@@ -23,6 +24,13 @@ class GasDataProvider with ChangeNotifier {
   String _serverPort = '3000';
   int _refreshInterval = 2;
   bool _autoRefresh = true;
+
+  // Bluetooth Bridge
+  final BluetoothService _bluetoothService = BluetoothService();
+  String _bluetoothBuffer = "";
+  StreamSubscription<String>? _bluetoothSubscription;
+
+  BluetoothService get bluetoothService => _bluetoothService;
 
   // Getters
   Incident? get latestReading => _latestReading;
@@ -103,6 +111,66 @@ class GasDataProvider with ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  // Bluetooth Connection & Bridging
+  Future<void> connectBluetooth(String address) async {
+    final success = await _bluetoothService.connect(address);
+    if (success) {
+      _startBluetoothBridging();
+    }
+  }
+
+  void _startBluetoothBridging() {
+    _bluetoothSubscription?.cancel();
+    _bluetoothSubscription = _bluetoothService.dataStream.listen((data) {
+      _bluetoothBuffer += data;
+
+      // Process lines (assuming Arduino sends \n or \r\n)
+      while (_bluetoothBuffer.contains('\n')) {
+        int index = _bluetoothBuffer.indexOf('\n');
+        String line = _bluetoothBuffer.substring(0, index).trim();
+        _bluetoothBuffer = _bluetoothBuffer.substring(index + 1);
+        debugPrint(_bluetoothBuffer);
+
+        if (line.isNotEmpty) {
+          _processBluetoothData(line);
+        }
+      }
+    });
+  }
+
+  Future<void> _processBluetoothData(String data) async {
+    // Expecting raw gas level value from Bluetooth
+    int? level = int.tryParse(data.trim());
+    if (level == null) return;
+
+    // Determine status based on level (common threshold example: 400)
+    String status = level > 400 ? 'ALERT' : 'NORMAL';
+
+    final incident = Incident(
+      gasLevel: level,
+      status: status,
+      timestamp: DateTime.now(),
+      location: 'Bluetooth Sensor (${_bluetoothService.deviceName})',
+    );
+
+    // 1. Update local UI state immediately
+    _latestReading = incident;
+    notifyListeners();
+
+    // 2. Forward to Node Server PC
+    if (_isConnected) {
+      bool sent = await ApiService.createIncident(incident);
+      if (!sent) {
+        debugPrint('Failed to forward Bluetooth data to server');
+      }
+    }
+  }
+
+  void disconnectBluetooth() {
+    _bluetoothSubscription?.cancel();
+    _bluetoothService.disconnect();
   }
 
   // Fetch latest reading

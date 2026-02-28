@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/gas_data_provider.dart';
 import '../widgets/theme_toggle.dart';
+import 'package:flutter_bluetooth_serial_plus/flutter_bluetooth_serial_plus.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -15,9 +16,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _serverIpController;
   late TextEditingController _serverPortController;
   late TextEditingController _refreshIntervalController;
+  List<BluetoothDevice> _pairedDevices = [];
+  BluetoothDevice? _selectedDevice;
 
   bool _autoRefresh = true;
-  bool _notificationsEnabled = true;
   String _themeMode = 'light';
 
   @override
@@ -30,6 +32,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       text: gasData.refreshInterval.toString(),
     );
     _autoRefresh = gasData.autoRefresh;
+    _getBluetoothDevices();
+  }
+
+  void _getBluetoothDevices() async {
+    final gasData = Provider.of<GasDataProvider>(context, listen: false);
+    final devices = await gasData.bluetoothService.getPairedDevices();
+    setState(() {
+      _pairedDevices = devices;
+    });
   }
 
   @override
@@ -63,7 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       controller: _serverIpController,
                       decoration: const InputDecoration(
                         labelText: 'Server IP Address',
-                        hintText: '192.168.1.100',
+                        hintText: '127.0.0.0',
                         prefixIcon: Icon(Icons.cloud),
                       ),
                       validator: (value) {
@@ -135,16 +146,138 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       },
                       secondary: const Icon(Icons.autorenew),
                     ),
-                    SwitchListTile(
-                      title: const Text('Notifications'),
-                      subtitle: const Text('Enable alert notifications'),
-                      value: _notificationsEnabled,
-                      onChanged: (value) {
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Bluetooth Configuration Card
+              _SettingsCard(
+                title: 'Bluetooth Pulse Bridge (HC-05)',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Select your HC-05 module to start bridging data to your PC server in real-time.',
+                      style: TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<BluetoothDevice>(
+                      value: _selectedDevice,
+                      hint: const Text('Select Bluetooth Device'),
+                      decoration: const InputDecoration(
+                        labelText: 'HC-05 Device',
+                        prefixIcon: Icon(Icons.bluetooth),
+                      ),
+                      items: _pairedDevices.map((device) {
+                        return DropdownMenuItem(
+                          value: device,
+                          child: Text(device.name ?? device.address),
+                        );
+                      }).toList(),
+                      onChanged: (device) {
                         setState(() {
-                          _notificationsEnabled = value;
+                          _selectedDevice = device;
                         });
                       },
-                      secondary: const Icon(Icons.notifications_active),
+                    ),
+                    const SizedBox(height: 16),
+                    Consumer<GasDataProvider>(
+                      builder: (context, gasData, child) {
+                        final isBtConnected =
+                            gasData.bluetoothService.isConnected;
+                        final isConnecting =
+                            gasData.bluetoothService.isConnecting;
+
+                        return Column(
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed:
+                                        _selectedDevice == null ||
+                                            isBtConnected ||
+                                            isConnecting
+                                        ? null
+                                        : () => gasData.connectBluetooth(
+                                            _selectedDevice!.address,
+                                          ),
+                                    icon: isConnecting
+                                        ? const SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Icon(Icons.link),
+                                    label: Text(
+                                      isConnecting
+                                          ? 'Connecting...'
+                                          : 'Connect Pulse',
+                                    ),
+                                  ),
+                                ),
+                                if (isBtConnected) ...[
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () =>
+                                          gasData.disconnectBluetooth(),
+                                      icon: const Icon(Icons.link_off),
+                                      label: const Text('Disconnect'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.red,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isBtConnected
+                                    ? Colors.blue.withValues(alpha: 0.1)
+                                    : Colors.grey.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isBtConnected
+                                        ? Icons.bluetooth_connected
+                                        : Icons.bluetooth_disabled,
+                                    color: isBtConnected
+                                        ? Colors.blue
+                                        : Colors.grey,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    isBtConnected
+                                        ? 'Bridging data from ${gasData.bluetoothService.deviceName}'
+                                        : 'Bluetooth Bridge Offline',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isBtConnected
+                                          ? Colors.blue
+                                          : Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),
