@@ -13,6 +13,22 @@ class Incident {
     this.location = 'Main Sensor',
   });
 
+  Incident copyWith({
+    int? id,
+    int? gasLevel,
+    String? status,
+    DateTime? timestamp,
+    String? location,
+  }) {
+    return Incident(
+      id: id ?? this.id,
+      gasLevel: gasLevel ?? this.gasLevel,
+      status: status ?? this.status,
+      timestamp: timestamp ?? this.timestamp,
+      location: location ?? this.location,
+    );
+  }
+
   factory Incident.fromJson(Map<String, dynamic> json) {
     try {
       return Incident(
@@ -39,7 +55,13 @@ class Incident {
   }
 
   Map<String, dynamic> toJson() {
-    return {'gas_level': gasLevel, 'status': status, 'location': location};
+    return {
+      'id': id,
+      'gas_level': gasLevel,
+      'status': status,
+      'location': location,
+      'timestamp': timestamp.toIso8601String(),
+    };
   }
 
   bool get isAlert => status == 'ALERT';

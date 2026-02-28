@@ -164,7 +164,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<BluetoothDevice>(
-                      value: _selectedDevice,
+                      initialValue: _selectedDevice,
                       hint: const Text('Select Bluetooth Device'),
                       decoration: const InputDecoration(
                         labelText: 'HC-05 Device',
