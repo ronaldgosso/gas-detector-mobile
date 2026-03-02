@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import '../models/incident_model.dart';
 
 class ApiService {
-  static String baseUrl = 'https://gas-detector-api.onrender.com';
+  static String baseUrl = 'https://gas-detector-api.vercel.app';
 
   static void updateBaseUrl(String url) {
     // Clean URL before assignment
@@ -20,9 +20,9 @@ class ApiService {
   static Future<Incident?> getLatestReading() async {
     try {
       Incident? result;
-      final response = await http
-          .get(Uri.parse('$baseUrl$apiPrefix/sensor/latest'))
-          .timeout(const Duration(seconds: 10));
+      final response = await http.get(
+        Uri.parse('$baseUrl$apiPrefix/sensor/latest'),
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -50,7 +50,7 @@ class ApiService {
               '$baseUrl$apiPrefix/incidents?page=$page&limit=$limit&status=$status',
             ),
           )
-          .timeout(const Duration(seconds: 10));
+          ;
       List incidentsJson = [];
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -74,20 +74,21 @@ class ApiService {
   // ===== GET STATISTICS =====
   static Future<Map<String, dynamic>> getStatistics() async {
     try {
-      final response = await http
-          .get(Uri.parse('$baseUrl$apiPrefix/statistics'))
-          .timeout(const Duration(seconds: 5));
+      Map<String, dynamic> results = {};
+      final response = await http.get(
+        Uri.parse('$baseUrl$apiPrefix/statistics'),
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data is Map && data['success'] == true) {
-          return data['data'] is Map
+          results = data['data'] is Map
               ? Map<String, dynamic>.from(data['data'])
               : {};
         }
       }
-      debugPrint('❌ Failed to get statistics: ${response.statusCode}');
-      return {};
+
+      return results;
     } catch (e) {
       debugPrint('❌ Error fetching statistics: $e');
       return {};
@@ -97,19 +98,22 @@ class ApiService {
   // ===== GET CHART DATA =====
   static Future<List<Incident>> getChartData({int limit = 50}) async {
     try {
-      final response = await http
-          .get(Uri.parse('$baseUrl$apiPrefix/chart/data?limit=$limit'))
-          .timeout(const Duration(seconds: 5));
+      List<Incident> results = [];
+      final response = await http.get(
+        Uri.parse('$baseUrl$apiPrefix/chart/data?limit=$limit'),
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data is Map && data['success'] == true && data['data'] != null) {
           final chartDataJson = data['data'] as List;
-          return chartDataJson.map((json) => Incident.fromJson(json)).toList();
+          results = chartDataJson
+              .map((json) => Incident.fromJson(json))
+              .toList();
         }
       }
-      debugPrint('❌ Failed to get chart data: ${response.statusCode}');
-      return [];
+
+      return results;
     } catch (e) {
       debugPrint('❌ Error fetching chart data: $e');
       return [];
@@ -135,13 +139,11 @@ class ApiService {
 
     try {
       // ✅ 3. Short timeout (5s) for Tanzania network conditions
-      final response = await http
-          .post(
-            url,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 5));
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
 
       // ✅ 4. Handle success
       if (response.statusCode == 201) {
@@ -170,14 +172,14 @@ class ApiService {
   static Future<Map<String, String>> getSettings() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl$apiPrefix/settings'));
-
+      Map<String, String> results = {};
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success']) {
-          return Map<String, String>.from(data['data'] ?? {});
+          results = Map<String, String>.from(data['data'] ?? {});
         }
       }
-      return {};
+      return results;
     } catch (e) {
       debugPrint('❌ Error fetching settings: $e');
       return {};
@@ -203,9 +205,7 @@ class ApiService {
   // ===== TEST CONNECTION =====
   static Future<bool> testConnection() async {
     try {
-      final response = await http
-          .get(Uri.parse('$baseUrl$apiPrefix/health'))
-          .timeout(const Duration(seconds: 3));
+      final response = await http.get(Uri.parse('$baseUrl$apiPrefix/health'));
       return response.statusCode == 200;
     } catch (e) {
       debugPrint('❌ Connection test failed: $e');
