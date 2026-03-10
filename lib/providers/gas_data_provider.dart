@@ -32,7 +32,7 @@ class GasDataProvider extends ChangeNotifier {
   List<Incident> _chartData = [];
   Map<String, dynamic> _statistics = {};
   bool _isLoading = false;
-  bool _isConnected = false;       // Server connection status
+  bool _isConnected = false; // Server connection status
   bool _isBluetoothConnected = false;
   int _currentPage = 1;
   String _filterStatus = 'all';
@@ -155,10 +155,7 @@ class GasDataProvider extends ChangeNotifier {
 
   /// Connect to an HC-05 device by MAC address.
   /// [deviceName] is optional but shown in the UI and incident location.
-  Future<void> connectBluetooth(
-    String address, {
-    String? deviceName,
-  }) async {
+  Future<void> connectBluetooth(String address, {String? deviceName}) async {
     // Clean up any existing connection first
     if (_isBluetoothConnected) {
       disconnectBluetooth();
@@ -168,7 +165,7 @@ class GasDataProvider extends ChangeNotifier {
     // bluetoothService.initPermissions() — no manual enable request needed.
     final success = await _bluetoothService.connect(
       address,
-      deviceName: deviceName,
+      // deviceName: deviceName,
     );
 
     _isBluetoothConnected = success;
@@ -251,8 +248,7 @@ class GasDataProvider extends ChangeNotifier {
       gasLevel: gasLevel,
       status: status,
       timestamp: DateTime.now(),
-      location:
-          'Mobile Sensor (${_bluetoothService.deviceName ?? "HC-05"})',
+      location: 'Mobile Sensor (${_bluetoothService.deviceName ?? "HC-05"})',
     );
 
     // 1. Update UI immediately
@@ -268,8 +264,7 @@ class GasDataProvider extends ChangeNotifier {
 
     // 3. Only send to server when rolling average crosses critical threshold
     if (_recentGasLevels.length >= _bufferSize) {
-      final avgLevel =
-          _recentGasLevels.reduce((a, b) => a + b) / _bufferSize;
+      final avgLevel = _recentGasLevels.reduce((a, b) => a + b) / _bufferSize;
       debugPrint(
         '📊 Rolling avg (last $_bufferSize): ${avgLevel.toStringAsFixed(1)} PPM',
       );
@@ -329,10 +324,7 @@ class GasDataProvider extends ChangeNotifier {
     // Skip near-duplicate timestamps (within 1 second)
     if (_pendingSends.any(
       (p) =>
-          p.incident.timestamp
-              .difference(incident.timestamp)
-              .inSeconds
-              .abs() <
+          p.incident.timestamp.difference(incident.timestamp).inSeconds.abs() <
           1,
     )) {
       debugPrint('⏭️ Skipping duplicate incident send');
@@ -340,9 +332,7 @@ class GasDataProvider extends ChangeNotifier {
     }
 
     _pendingSends.add(PendingIncident(incident));
-    debugPrint(
-      '📤 Queued critical incident (avg=${incident.gasLevel} PPM)',
-    );
+    debugPrint('📤 Queued critical incident (avg=${incident.gasLevel} PPM)');
 
     _retryTimer ??= _startRetryTimer();
   }
@@ -369,28 +359,28 @@ class GasDataProvider extends ChangeNotifier {
         '(backoff: ${nextDelay.inSeconds}s)',
       );
 
-      ApiService.createIncident(pending.incident).then((success) {
-        if (success) {
-          debugPrint(
-            '✅ Server send successful: ${pending.incident.id}',
-          );
-          _pendingSends.remove(pending);
-        } else {
-          debugPrint(
-            '❌ Server send failed: ${pending.incident.id} '
-            '(attempt ${pending.retryCount}/5)',
-          );
-          if (pending.retryCount >= 5) {
-            debugPrint(
-              '⚠️ Giving up on ${pending.incident.id} after 5 retries',
-            );
-            _pendingSends.remove(pending);
-          }
-        }
-        notifyListeners();
-      }).catchError((error) {
-        debugPrint('❌ Exception during server send: $error');
-      });
+      ApiService.createIncident(pending.incident)
+          .then((success) {
+            if (success) {
+              debugPrint('✅ Server send successful: ${pending.incident.id}');
+              _pendingSends.remove(pending);
+            } else {
+              debugPrint(
+                '❌ Server send failed: ${pending.incident.id} '
+                '(attempt ${pending.retryCount}/5)',
+              );
+              if (pending.retryCount >= 5) {
+                debugPrint(
+                  '⚠️ Giving up on ${pending.incident.id} after 5 retries',
+                );
+                _pendingSends.remove(pending);
+              }
+            }
+            notifyListeners();
+          })
+          .catchError((error) {
+            debugPrint('❌ Exception during server send: $error');
+          });
     });
   }
 
