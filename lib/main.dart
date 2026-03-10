@@ -21,7 +21,7 @@ class MyApp extends StatelessWidget {
       child: Consumer<GasDataProvider>(
         builder: (context, gasData, child) {
           return MaterialApp(
-            title: 'Gas Monitor',
+            title: 'Gas Guard Monitor',
             debugShowCheckedModeBanner: false,
 
             // Use imported theme files
