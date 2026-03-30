@@ -15,6 +15,8 @@
 
 Designed specifically for Tanzania's network conditions and power infrastructure challenges, GGM maintains functionality during power outages and network disruptions with offline data queuing and intelligent retry logic.
 
+![phone1](https://github.com/user-attachments/assets/5ccd291e-f68a-446f-8b39-0157d3c0f71b)
+
 ---
 
 ## ✨ Key Features
