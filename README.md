@@ -160,24 +160,8 @@ void loop() {
 6. Tap "Send Test SMS" to verify reachability
 
 ### Critical Alert Flow
-```
-Arduino detects gas >800 PPM for 3 readings
-    ↓
-Mobile app calculates rolling average = 860 PPM
-    ↓
-Local alert: Vibration + sound on phone
-    ↓
-App queues incident for server send
-    ↓
-Network available? → YES → POST to https://gas-detector-api.vercel.app/api/incidents
-    ↓
-Server receives incident → Triggers NextSMS
-    ↓
-SMS sent to +255 contacts within 5 seconds:
-       "🚨 GAS LEAK 860PPM @ Kitchen. EVACUATE! Call 112"
-    ↓
-Emergency contact responds → Life saved 💙
-```
+
+<img width="1024" height="1536" alt="lpg flow" src="https://github.com/user-attachments/assets/cfad5a04-07d4-4cc1-9018-0050e5ff7eee" />
 
 ---
 
